@@ -28,7 +28,7 @@ A production-ready Go microservice for managing companies with REST API, Postgre
 
 ### Prerequisites
 
-- Go 1.21+
+- Go 1.23+
 - Docker and Docker Compose
 - Make (optional)
 
