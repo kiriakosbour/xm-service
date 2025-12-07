@@ -1,0 +1,1413 @@
+{
+	"info": {
+		"_postman_id": "xm-company-service-collection",
+		"name": "XM Company Service API",
+		"description": "Complete API collection for XM Company Service - validates all requirements from XM Golang Exercise v22.0.0\n\n## Requirements Covered:\n- Create, Patch, Delete, Get operations\n- All company attributes validation\n- JWT Authentication\n- All company types\n\n## Setup:\n1. Set `base_url` variable (default: http://localhost:8080)\n2. Set `jwt_token` variable for authenticated requests\n3. Run \"Health Check\" first to verify server is running",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "jwt_token",
+			"value": "test-token-123",
+			"type": "string"
+		},
+		{
+			"key": "company_id",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Health Checks",
+			"item": [
+				{
+					"name": "Liveness Check",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has status ok\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.status).to.eql(\"ok\");",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health/live",
+							"host": ["{{base_url}}"],
+							"path": ["health", "live"]
+						},
+						"description": "Basic liveness probe - checks if server is running"
+					},
+					"response": []
+				},
+				{
+					"name": "Readiness Check",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Database is healthy\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.services.database).to.eql(\"healthy\");",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health/ready",
+							"host": ["{{base_url}}"],
+							"path": ["health", "ready"]
+						},
+						"description": "Readiness probe - checks server and database connectivity"
+					},
+					"response": []
+				}
+			],
+			"description": "Health check endpoints for production readiness"
+		},
+		{
+			"name": "Authentication Tests",
+			"item": [
+				{
+					"name": "Create without Auth (should fail)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 401 Unauthorized\", function () {",
+									"    pm.response.to.have.status(401);",
+									"});",
+									"",
+									"pm.test(\"Error message present\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.error).to.exist;",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"NoAuthTest\",\n    \"employees\": 10,\n    \"registered\": true,\n    \"type\": \"Corporations\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/companies",
+							"host": ["{{base_url}}"],
+							"path": ["companies"]
+						},
+						"description": "Verifies that POST /companies requires authentication"
+					},
+					"response": []
+				},
+				{
+					"name": "Patch without Auth (should fail)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 401 Unauthorized\", function () {",
+									"    pm.response.to.have.status(401);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"employees\": 20\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/companies/00000000-0000-0000-0000-000000000001",
+							"host": ["{{base_url}}"],
+							"path": ["companies", "00000000-0000-0000-0000-000000000001"]
+						},
+						"description": "Verifies that PATCH /companies/{id} requires authentication"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete without Auth (should fail)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 401 Unauthorized\", function () {",
+									"    pm.response.to.have.status(401);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/companies/00000000-0000-0000-0000-000000000001",
+							"host": ["{{base_url}}"],
+							"path": ["companies", "00000000-0000-0000-0000-000000000001"]
+						},
+						"description": "Verifies that DELETE /companies/{id} requires authentication"
+					},
+					"response": []
+				},
+				{
+					"name": "Get without Auth (should work)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 404 (not 401)\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test(\"GET is public - no auth required\", function () {",
+									"    pm.expect(pm.response.code).to.not.eql(401);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/companies/00000000-0000-0000-0000-000000000001",
+							"host": ["{{base_url}}"],
+							"path": ["companies", "00000000-0000-0000-0000-000000000001"]
+						},
+						"description": "Verifies that GET /companies/{id} is public (returns 404, not 401)"
+					},
+					"response": []
+				},
+				{
+					"name": "Invalid Auth Header Format",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 401 Unauthorized\", function () {",
+									"    pm.response.to.have.status(401);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "InvalidFormat"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"BadAuth\",\n    \"employees\": 10,\n    \"registered\": true,\n    \"type\": \"Corporations\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/companies",
+							"host": ["{{base_url}}"],
+							"path": ["companies"]
+						},
+						"description": "Verifies that invalid Authorization header format is rejected"
+					},
+					"response": []
+				}
+			],
+			"description": "Tests for JWT authentication requirement"
+		},
+		{
+			"name": "CRUD Operations",
+			"item": [
+				{
+					"name": "Create Company",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201 Created\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Response has valid UUID\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);",
+									"    pm.collectionVariables.set(\"company_id\", jsonData.id);",
+									"});",
+									"",
+									"pm.test(\"Response contains all required fields\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.id).to.exist;",
+									"    pm.expect(jsonData.name).to.eql(\"TestCompany\");",
+									"    pm.expect(jsonData.description).to.eql(\"A test company\");",
+									"    pm.expect(jsonData.employees).to.eql(100);",
+									"    pm.expect(jsonData.registered).to.eql(true);",
+									"    pm.expect(jsonData.type).to.eql(\"Corporations\");",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"TestCompany\",\n    \"description\": \"A test company\",\n    \"employees\": 100,\n    \"registered\": true,\n    \"type\": \"Corporations\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/companies",
+							"host": ["{{base_url}}"],
+							"path": ["companies"]
+						},
+						"description": "Creates a new company with all fields"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Company",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response contains correct company\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.id).to.eql(pm.collectionVariables.get(\"company_id\"));",
+									"    pm.expect(jsonData.name).to.eql(\"TestCompany\");",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/companies/{{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["companies", "{{company_id}}"]
+						},
+						"description": "Retrieves a company by ID (public endpoint)"
+					},
+					"response": []
+				},
+				{
+					"name": "Patch Company - Single Field",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Employees field updated\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.employees).to.eql(200);",
+									"});",
+									"",
+									"pm.test(\"Other fields unchanged\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.name).to.eql(\"TestCompany\");",
+									"    pm.expect(jsonData.registered).to.eql(true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"employees\": 200\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/companies/{{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["companies", "{{company_id}}"]
+						},
+						"description": "Partial update - only updates employees field"
+					},
+					"response": []
+				},
+				{
+					"name": "Patch Company - Multiple Fields",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"All fields updated\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.employees).to.eql(300);",
+									"    pm.expect(jsonData.registered).to.eql(false);",
+									"    pm.expect(jsonData.description).to.eql(\"Updated description\");",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"employees\": 300,\n    \"registered\": false,\n    \"description\": \"Updated description\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/companies/{{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["companies", "{{company_id}}"]
+						},
+						"description": "Partial update - updates multiple fields at once"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Company",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 204 No Content\", function () {",
+									"    pm.response.to.have.status(204);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/companies/{{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["companies", "{{company_id}}"]
+						},
+						"description": "Deletes a company by ID"
+					},
+					"response": []
+				},
+				{
+					"name": "Verify Deletion",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 404 Not Found\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/companies/{{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["companies", "{{company_id}}"]
+						},
+						"description": "Verifies the company was deleted"
+					},
+					"response": []
+				}
+			],
+			"description": "Core CRUD operations for companies"
+		},
+		{
+			"name": "Name Validation (15 chars, unique)",
+			"item": [
+				{
+					"name": "Name - Exactly 15 chars (valid)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201 Created\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Name has 15 characters\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.name.length).to.eql(15);",
+									"});",
+									"",
+									"// Save for cleanup",
+									"var jsonData = pm.response.json();",
+									"pm.collectionVariables.set(\"name15_id\", jsonData.id);"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Exactly15Chars!\",\n    \"employees\": 50,\n    \"registered\": true,\n    \"type\": \"NonProfit\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/companies",
+							"host": ["{{base_url}}"],
+							"path": ["companies"]
+						},
+						"description": "Name with exactly 15 characters should be accepted"
+					},
+					"response": []
+				},
+				{
+					"name": "Name - 16 chars (invalid)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 400 Bad Request\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"Error message about name length\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.error).to.include(\"15\");",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"TooLong16Chars!!\",\n    \"employees\": 50,\n    \"registered\": true,\n    \"type\": \"NonProfit\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/companies",
+							"host": ["{{base_url}}"],
+							"path": ["companies"]
+						},
+						"description": "Name with 16 characters should be rejected"
+					},
+					"response": []
+				},
+				{
+					"name": "Name - Empty (invalid)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 400 Bad Request\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"\",\n    \"employees\": 50,\n    \"registered\": true,\n    \"type\": \"NonProfit\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/companies",
+							"host": ["{{base_url}}"],
+							"path": ["companies"]
+						},
+						"description": "Empty name should be rejected"
+					},
+					"response": []
+				},
+				{
+					"name": "Name - Duplicate (invalid)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 409 Conflict or 400\", function () {",
+									"    pm.expect([400, 409]).to.include(pm.response.code);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Exactly15Chars!\",\n    \"employees\": 100,\n    \"registered\": false,\n    \"type\": \"Corporations\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/companies",
+							"host": ["{{base_url}}"],
+							"path": ["companies"]
+						},
+						"description": "Duplicate name should be rejected (uniqueness constraint)"
+					},
+					"response": []
+				}
+			],
+			"description": "Tests for name field validation: max 15 chars, required, unique"
+		},
+		{
+			"name": "Description Validation (3000 chars, optional)",
+			"item": [
+				{
+					"name": "Description - Optional (no description)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201 Created\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.collectionVariables.set(\"nodesc_id\", jsonData.id);"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"NoDescCompany\",\n    \"employees\": 25,\n    \"registered\": true,\n    \"type\": \"Cooperative\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/companies",
+							"host": ["{{base_url}}"],
+							"path": ["companies"]
+						},
+						"description": "Company can be created without description (optional field)"
+					},
+					"response": []
+				},
+				{
+					"name": "Description - 3001 chars (invalid)",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// Generate 3001 character string",
+									"var desc = 'A'.repeat(3001);",
+									"pm.collectionVariables.set(\"long_description\", desc);"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 400 Bad Request\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"Error message about description length\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.error).to.include(\"3000\");",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Desc3001Co\",\n    \"description\": \"{{long_description}}\",\n    \"employees\": 25,\n    \"registered\": true,\n    \"type\": \"Cooperative\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/companies",
+							"host": ["{{base_url}}"],
+							"path": ["companies"]
+						},
+						"description": "Description with 3001 characters should be rejected"
+					},
+					"response": []
+				}
+			],
+			"description": "Tests for description field validation: max 3000 chars, optional"
+		},
+		{
+			"name": "Employees Validation (int, required)",
+			"item": [
+				{
+					"name": "Employees - Negative (invalid)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 400 Bad Request\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"NegativeEmp\",\n    \"employees\": -1,\n    \"registered\": true,\n    \"type\": \"Corporations\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/companies",
+							"host": ["{{base_url}}"],
+							"path": ["companies"]
+						},
+						"description": "Negative employees count should be rejected"
+					},
+					"response": []
+				},
+				{
+					"name": "Employees - Zero (valid)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201 Created\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Employees is 0\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.employees).to.eql(0);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.collectionVariables.set(\"zero_emp_id\", jsonData.id);"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"ZeroEmplCo\",\n    \"employees\": 0,\n    \"registered\": true,\n    \"type\": \"Sole Proprietorship\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/companies",
+							"host": ["{{base_url}}"],
+							"path": ["companies"]
+						},
+						"description": "Zero employees should be accepted"
+					},
+					"response": []
+				}
+			],
+			"description": "Tests for employees field validation: integer, required, >= 0"
+		},
+		{
+			"name": "Type Validation (enum)",
+			"item": [
+				{
+					"name": "Type - Corporations (valid)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201 Created\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Type is Corporations\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.type).to.eql(\"Corporations\");",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.collectionVariables.set(\"type_corp_id\", jsonData.id);"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"TypeCorpTest\",\n    \"employees\": 10,\n    \"registered\": true,\n    \"type\": \"Corporations\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/companies",
+							"host": ["{{base_url}}"],
+							"path": ["companies"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Type - NonProfit (valid)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201 Created\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.collectionVariables.set(\"type_np_id\", jsonData.id);"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"TypeNPTest\",\n    \"employees\": 10,\n    \"registered\": true,\n    \"type\": \"NonProfit\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/companies",
+							"host": ["{{base_url}}"],
+							"path": ["companies"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Type - Cooperative (valid)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201 Created\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.collectionVariables.set(\"type_coop_id\", jsonData.id);"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"TypeCoopTest\",\n    \"employees\": 10,\n    \"registered\": true,\n    \"type\": \"Cooperative\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/companies",
+							"host": ["{{base_url}}"],
+							"path": ["companies"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Type - Sole Proprietorship (valid)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201 Created\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.collectionVariables.set(\"type_sole_id\", jsonData.id);"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"TypeSoleTest\",\n    \"employees\": 10,\n    \"registered\": true,\n    \"type\": \"Sole Proprietorship\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/companies",
+							"host": ["{{base_url}}"],
+							"path": ["companies"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Type - LLC (invalid)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 400 Bad Request\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"Error message about invalid type\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.error.toLowerCase()).to.include(\"type\");",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"InvalidType\",\n    \"employees\": 10,\n    \"registered\": true,\n    \"type\": \"LLC\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/companies",
+							"host": ["{{base_url}}"],
+							"path": ["companies"]
+						},
+						"description": "Invalid type 'LLC' should be rejected"
+					},
+					"response": []
+				},
+				{
+					"name": "Type - Empty (invalid)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 400 Bad Request\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"EmptyType\",\n    \"employees\": 10,\n    \"registered\": true,\n    \"type\": \"\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/companies",
+							"host": ["{{base_url}}"],
+							"path": ["companies"]
+						},
+						"description": "Empty type should be rejected"
+					},
+					"response": []
+				}
+			],
+			"description": "Tests for type field validation: Corporations | NonProfit | Cooperative | Sole Proprietorship"
+		},
+		{
+			"name": "Registered Field (boolean)",
+			"item": [
+				{
+					"name": "Registered - true (valid)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201 Created\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Registered is true\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.registered).to.eql(true);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.collectionVariables.set(\"reg_true_id\", jsonData.id);"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"RegTrueTest\",\n    \"employees\": 10,\n    \"registered\": true,\n    \"type\": \"Corporations\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/companies",
+							"host": ["{{base_url}}"],
+							"path": ["companies"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Registered - false (valid)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201 Created\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Registered is false\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.registered).to.eql(false);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.collectionVariables.set(\"reg_false_id\", jsonData.id);"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"RegFalseTest\",\n    \"employees\": 10,\n    \"registered\": false,\n    \"type\": \"Corporations\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/companies",
+							"host": ["{{base_url}}"],
+							"path": ["companies"]
+						}
+					},
+					"response": []
+				}
+			],
+			"description": "Tests for registered field validation: boolean, required"
+		},
+		{
+			"name": "Error Cases",
+			"item": [
+				{
+					"name": "Get Non-existent Company",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 404 Not Found\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/companies/00000000-0000-0000-0000-000000000000",
+							"host": ["{{base_url}}"],
+							"path": ["companies", "00000000-0000-0000-0000-000000000000"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Invalid UUID Format",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 400 Bad Request\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/companies/not-a-valid-uuid",
+							"host": ["{{base_url}}"],
+							"path": ["companies", "not-a-valid-uuid"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Patch Non-existent Company",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 404 Not Found\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"employees\": 100\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/companies/00000000-0000-0000-0000-000000000000",
+							"host": ["{{base_url}}"],
+							"path": ["companies", "00000000-0000-0000-0000-000000000000"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Non-existent Company",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 404 Not Found\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/companies/00000000-0000-0000-0000-000000000000",
+							"host": ["{{base_url}}"],
+							"path": ["companies", "00000000-0000-0000-0000-000000000000"]
+						}
+					},
+					"response": []
+				}
+			],
+			"description": "Error handling test cases"
+		}
+	]
+}
