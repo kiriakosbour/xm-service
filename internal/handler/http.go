@@ -2,115 +2,183 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
+	"log"
 	"net/http"
-	"xm/internal/core"
-	"xm/internal/service"
+
+	"xm-company-service/internal/core"
+	"xm-company-service/internal/service"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
+// Handler handles HTTP requests for company operations
 type Handler struct {
 	svc *service.CompanyService
 }
 
+// NewHandler creates a new HTTP handler
 func NewHandler(svc *service.CompanyService) *Handler {
 	return &Handler{svc: svc}
 }
 
-// POST /companies
-func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
-	var input core.Company
-	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		http.Error(w, "Invalid JSON body", http.StatusBadRequest)
-		return
-	}
-
-	created, err := h.svc.Create(r.Context(), &input)
-	if err != nil {
-		status := http.StatusInternalServerError
-		if err.Error() == "company name already exists" || err.Error() == "name must be 15 characters or fewer" {
-			status = http.StatusBadRequest
-		}
-		http.Error(w, err.Error(), status)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(created)
+// ErrorResponse represents an error response
+type ErrorResponse struct {
+	Error string `json:"error"`
 }
 
-// GET /companies/{id}
+// CreateRequest represents the request body for creating a company
+type CreateRequest struct {
+	Name        string           `json:"name"`
+	Description *string          `json:"description,omitempty"`
+	Employees   int              `json:"employees"`
+	Registered  bool             `json:"registered"`
+	Type        core.CompanyType `json:"type"`
+}
+
+// Create handles POST /companies
+func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
+	var req CreateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, "invalid JSON body", http.StatusBadRequest)
+		return
+	}
+
+	company := &core.Company{
+		Name:        req.Name,
+		Description: req.Description,
+		Employees:   req.Employees,
+		Registered:  req.Registered,
+		Type:        req.Type,
+	}
+
+	created, err := h.svc.Create(r.Context(), company)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	respondJSON(w, created, http.StatusCreated)
+}
+
+// Get handles GET /companies/{id}
 func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		http.Error(w, "Invalid UUID format", http.StatusBadRequest)
+		respondError(w, "invalid UUID format", http.StatusBadRequest)
 		return
 	}
 
 	company, err := h.svc.Get(r.Context(), id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		handleServiceError(w, err)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(company)
+	respondJSON(w, company, http.StatusOK)
 }
 
-// PATCH /companies/{id}
+// Patch handles PATCH /companies/{id}
 func (h *Handler) Patch(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		http.Error(w, "Invalid UUID format", http.StatusBadRequest)
+		respondError(w, "invalid UUID format", http.StatusBadRequest)
 		return
 	}
 
-	// Decode into map for partial update
 	var updates map[string]interface{}
 	if err := json.NewDecoder(r.Body).Decode(&updates); err != nil {
-		http.Error(w, "Invalid JSON body", http.StatusBadRequest)
+		respondError(w, "invalid JSON body", http.StatusBadRequest)
 		return
 	}
 
-	updatedCompany, err := h.svc.Patch(r.Context(), id, updates)
+	// Don't allow updating ID
+	delete(updates, "id")
+
+	if len(updates) == 0 {
+		respondError(w, "no fields to update", http.StatusBadRequest)
+		return
+	}
+
+	updated, err := h.svc.Patch(r.Context(), id, updates)
 	if err != nil {
-		// Determine status code based on error
-		status := http.StatusInternalServerError
-		if err.Error() == "company not found" {
-			status = http.StatusNotFound
-		} else if err.Error() == "company name already exists" {
-			status = http.StatusBadRequest
-		}
-		http.Error(w, err.Error(), status)
+		handleServiceError(w, err)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(updatedCompany)
+	respondJSON(w, updated, http.StatusOK)
 }
 
-// DELETE /companies/{id}
+// Delete handles DELETE /companies/{id}
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		http.Error(w, "Invalid UUID format", http.StatusBadRequest)
+		respondError(w, "invalid UUID format", http.StatusBadRequest)
 		return
 	}
 
 	err = h.svc.Delete(r.Context(), id)
 	if err != nil {
-		status := http.StatusInternalServerError
-		if err.Error() == "company not found" {
-			status = http.StatusNotFound
-		}
-		http.Error(w, err.Error(), status)
+		handleServiceError(w, err)
 		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleServiceError maps service errors to HTTP status codes
+func handleServiceError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, core.ErrNotFound):
+		respondError(w, err.Error(), http.StatusNotFound)
+	case errors.Is(err, core.ErrDuplicateName):
+		respondError(w, err.Error(), http.StatusConflict)
+	default:
+		// Check for validation errors
+		errMsg := err.Error()
+		if isValidationError(errMsg) {
+			respondError(w, errMsg, http.StatusBadRequest)
+			return
+		}
+		log.Printf("Internal error: %v", err)
+		respondError(w, "internal server error", http.StatusInternalServerError)
+	}
+}
+
+// isValidationError checks if the error message indicates a validation error
+func isValidationError(msg string) bool {
+	validationPrefixes := []string{
+		"name is required",
+		"name must be",
+		"description must be",
+		"employees cannot be",
+		"invalid company type",
+		"registered",
+	}
+	for _, prefix := range validationPrefixes {
+		if len(msg) >= len(prefix) && msg[:len(prefix)] == prefix {
+			return true
+		}
+	}
+	return false
+}
+
+// respondJSON writes a JSON response
+func respondJSON(w http.ResponseWriter, data interface{}, status int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		log.Printf("Error encoding response: %v", err)
+	}
+}
+
+// respondError writes an error response
+func respondError(w http.ResponseWriter, message string, status int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(ErrorResponse{Error: message})
 }

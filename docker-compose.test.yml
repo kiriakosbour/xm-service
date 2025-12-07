@@ -1,0 +1,98 @@
+version: '3.8'
+
+# This docker-compose is specifically for running E2E tests
+# Usage: docker-compose -f docker-compose.test.yml up --build --abort-on-container-exit
+
+services:
+  # Application under test
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - SERVER_PORT=:8080
+      - DB_URL=postgres://xm_user:xm_password@db:5432/xm_test?sslmode=disable
+      - KAFKA_BROKERS=kafka:29092
+      - KAFKA_TOPIC=company-events
+      - KAFKA_ENABLED=true
+      - JWT_SECRET=test-secret-key
+    depends_on:
+      db:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    networks:
+      - test-network
+
+  # PostgreSQL database
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: xm_user
+      POSTGRES_PASSWORD: xm_password
+      POSTGRES_DB: xm_test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U xm_user -d xm_test"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    networks:
+      - test-network
+
+  # Zookeeper for Kafka
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - test-network
+
+  # Kafka message broker
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    networks:
+      - test-network
+
+  # E2E Test runner
+  e2e-tests:
+    image: curlimages/curl:latest
+    depends_on:
+      app:
+        condition: service_healthy
+    volumes:
+      - ./tests/e2e_test.sh:/tests/e2e_test.sh:ro
+    environment:
+      - BASE_URL=http://app:8080
+      - JWT_TOKEN=test-token-123
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "Waiting for app to be ready..."
+        sleep 5
+        echo "Running E2E tests..."
+        /tests/e2e_test.sh
+    networks:
+      - test-network
+
+networks:
+  test-network:
+    driver: bridge

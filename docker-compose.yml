@@ -1,37 +1,90 @@
 version: '3.8'
+
 services:
   app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
       - "8080:8080"
-    depends_on:
-      - db
-      - kafka
     environment:
-      - DB_URL=postgres://user:pass@db:5432/xm?sslmode=disable
-      - KAFKA_BROKERS=kafka:9092
+      - SERVER_PORT=:8080
+      - DB_URL=postgres://xm_user:xm_password@db:5432/xm_db?sslmode=disable
+      - KAFKA_BROKERS=kafka:29092
+      - KAFKA_TOPIC=company-events
+      - KAFKA_ENABLED=true
+      - JWT_SECRET=your-super-secret-key-change-in-production
+    depends_on:
+      db:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - xm-network
 
   db:
     image: postgres:15-alpine
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: pass
-      POSTGRES_DB: xm
+      POSTGRES_USER: xm_user
+      POSTGRES_PASSWORD: xm_password
+      POSTGRES_DB: xm_db
     ports:
       - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U xm_user -d xm_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - xm-network
 
   zookeeper:
-    image: confluentinc/cp-zookeeper:latest
+    image: confluentinc/cp-zookeeper:7.5.0
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - xm-network
 
   kafka:
-    image: confluentinc/cp-kafka:latest
+    image: confluentinc/cp-kafka:7.5.0
     depends_on:
       - zookeeper
     ports:
       - "9092:9092"
     environment:
+      KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    networks:
+      - xm-network
+
+  # Optional: Kafka UI for debugging
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+    depends_on:
+      - kafka
+    networks:
+      - xm-network
+    profiles:
+      - debug
+
+volumes:
+  postgres_data:
+
+networks:
+  xm-network:
+    driver: bridge
